@@ -11,34 +11,25 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Descargar repositorio
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Backend Go
-      - name: Configurar Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.26.x'
-
-      # Frontend y E2E
-      - name: Configurar Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: |
-            frontend/pnpm-lock.yaml
-            e2e/pnpm-lock.yaml
-
-      - name: Activar pnpm
+      - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 10
 
-      - name: Instalar dependencias del frontend
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
         working-directory: frontend
         run: pnpm install --frozen-lockfile
-
+  
       - name: Instalar dependencias de E2E
         working-directory: e2e
         run: pnpm install --frozen-lockfile
