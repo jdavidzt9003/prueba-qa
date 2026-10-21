@@ -1,0 +1,138 @@
+
+name: E2E Playwright
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      # Backend Go
+      - name: Configurar Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+
+      # Frontend y E2E
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: |
+            frontend/pnpm-lock.yaml
+            e2e/pnpm-lock.yaml
+
+      - name: Activar pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Instalar dependencias del frontend
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Instalar dependencias de E2E
+        working-directory: e2e
+        run: pnpm install --frozen-lockfile
+
+      - name: Instalar navegadores
+        working-directory: e2e
+        run: pnpm exec playwright install --with-deps chromium
+
+      # Levantar ambos servidores
+      - name: Iniciar backend y frontend
+        shell: bash
+        run: |
+          set -e
+
+          # Backend Go: http://localhost:8080
+          (
+            cd backend
+            go run ./cmd/api
+          ) > /tmp/energia-backend.log 2>&1 &
+
+          BACKEND_PID=$!
+          echo "Backend PID: $BACKEND_PID"
+
+          # Frontend Vite: http://localhost:5173
+          (
+            cd frontend
+            pnpm dev -- --host 127.0.0.1
+          ) > /tmp/energia-frontend.log 2>&1 &
+
+          FRONTEND_PID=$!
+          echo "Frontend PID: $FRONTEND_PID"
+
+          # Esperar backend (máximo 120 segundos)
+          for i in {1..60}; do
+            if curl -fsS http://localhost:8080/health > /dev/null; then
+              echo "Backend disponible."
+              break
+            fi
+
+            if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+              echo "El backend terminó inesperadamente."
+              cat /tmp/energia-backend.log
+              exit 1
+            fi
+
+            if [ "$i" -eq 60 ]; then
+              echo "Timeout esperando al backend."
+              cat /tmp/energia-backend.log
+              exit 1
+            fi
+
+            sleep 2
+          done
+
+          # Esperar frontend (máximo 120 segundos)
+          for i in {1..60}; do
+            if curl -fsS http://localhost:5173/ > /dev/null; then
+              echo "Frontend disponible."
+              break
+            fi
+
+            if ! kill -0 "$FRONTEND_PID" 2>/dev/null; then
+              echo "El frontend terminó inesperadamente."
+              cat /tmp/energia-frontend.log
+              exit 1
+            fi
+
+            if [ "$i" -eq 60 ]; then
+              echo "Timeout esperando al frontend."
+              cat /tmp/energia-frontend.log
+              exit 1
+            fi
+
+            sleep 2
+          done
+
+      # Ejecutar pruebas automatizadas
+      - name: Ejecutar pruebas
+        working-directory: e2e
+        env:
+          BASE_URL: http://localhost:5173
+          API_BASE_URL: http://localhost:8080
+          E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+        run: pnpm exec playwright test --project=chromium
+
+      # Reportes y evidencias
+      - name: Publicar reporte y evidencias
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+          if-no-files-found: ignore
+          retention-days: 14
