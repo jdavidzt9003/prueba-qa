@@ -1,5 +1,8 @@
 # E2E EnergIA — Playwright + TypeScript
 
+## Video explicación: 
+https://youtu.be/60amnzPaZuo
+
 ## Requisitos
 - Node.js y npm.
 - Frontend levantado en `http://localhost:5173`.
@@ -15,7 +18,7 @@ cp .env.example .env
 # Completa E2E_USERNAME y E2E_PASSWORD en .env
 pnpm install
 pnpm playwright install chromium
-pnpm test
+pnpm exec playwright test --project=chromium 
 ```
 
 Después de la instalación inicial, el comando para ejecutar la suite es `npm test`.

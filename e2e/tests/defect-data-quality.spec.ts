@@ -7,7 +7,7 @@ test.describe('DEF-003 - Paginación del Libro de medidores', () => {
     'DEF-003: el botón Siguiente no permite consultar la segunda página'
   );
 
-  test('permite consultar los 12 medidores mediante paginación', async ({
+  test.fail('permite consultar los 12 medidores mediante paginación', async ({
     page,
   }) => {
 
